@@ -32,6 +32,7 @@ class CarController(CarControllerBase):
 
     self.cruise_button_prev = 0
     self.steer_rate_counter = 0
+    self.es_enabled_hold_frames = 0
 
     self.p = CarControllerParams(CP)
     self.packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
@@ -154,11 +155,17 @@ class CarController(CarControllerBase):
         can_sends.append(subarucan.create_preglobal_es_distance(self.packer, cruise_button, CS.es_distance_msg))
 
     else:
+      if CC.enabled:
+        self.es_enabled_hold_frames = 50
+      elif self.es_enabled_hold_frames > 0:
+        self.es_enabled_hold_frames -= 1
+      es_enabled = CC.enabled or self.es_enabled_hold_frames > 0
+
       if self.frame % 10 == 0:
-        can_sends.append(subarucan.create_es_dashstatus(self.packer, self.frame // 10, CS.es_dashstatus_msg, CC.enabled,
+        can_sends.append(subarucan.create_es_dashstatus(self.packer, self.frame // 10, CS.es_dashstatus_msg, es_enabled,
                                                         self.CP.openpilotLongitudinalControl, CC.longActive, hud_control.leadVisible))
 
-        can_sends.append(subarucan.create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, CC.enabled, hud_control.visualAlert,
+        can_sends.append(subarucan.create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, es_enabled, hud_control.visualAlert,
                                                         hud_control.leftLaneVisible, hud_control.rightLaneVisible,
                                                         hud_control.leftLaneDepart, hud_control.rightLaneDepart))
 
