@@ -32,7 +32,7 @@ class CarController(CarControllerBase):
 
     self.cruise_button_prev = 0
     self.steer_rate_counter = 0
-    self.es_disengage_frames = 1000
+    self.es_enabled_hold_frames = 0
 
     self.p = CarControllerParams(CP)
     self.packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
@@ -156,10 +156,10 @@ class CarController(CarControllerBase):
 
     else:
       if CC.enabled:
-        self.es_disengage_frames = 0
-      else:
-        self.es_disengage_frames = min(self.es_disengage_frames + 1, 1000)
-      es_enabled = self.es_disengage_frames < 50 or (CS.out.brakePressed and self.es_disengage_frames < 500)
+        self.es_enabled_hold_frames = 50
+      elif self.es_enabled_hold_frames > 0:
+        self.es_enabled_hold_frames -= 1
+      es_enabled = CC.enabled or self.es_enabled_hold_frames > 0
 
       if self.frame % 10 == 0:
         can_sends.append(subarucan.create_es_dashstatus(self.packer, self.frame // 10, CS.es_dashstatus_msg, es_enabled,
@@ -167,7 +167,7 @@ class CarController(CarControllerBase):
 
         can_sends.append(subarucan.create_es_lkas_state(self.packer, self.frame // 10, CS.es_lkas_state_msg, es_enabled, hud_control.visualAlert,
                                                         hud_control.leftLaneVisible, hud_control.rightLaneVisible,
-                                                        hud_control.leftLaneDepart, hud_control.rightLaneDepart, lkas_active=CC.enabled))
+                                                        hud_control.leftLaneDepart, hud_control.rightLaneDepart))
 
         if self.CP.flags & SubaruFlags.SEND_INFOTAINMENT:
           can_sends.append(subarucan.create_es_infotainment(self.packer, self.frame // 10, CS.es_infotainment_msg, hud_control.visualAlert))
