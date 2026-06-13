@@ -20,13 +20,7 @@ class CarInterface(CarInterfaceBase):
     # - proper panda safety setup (use the correct cruise_activated bit, throttle from Throttle_Hybrid, etc)
     # for LKAS_ANGLE CARS to be upstreamed, we need:
     # - validate angle safety
-    ret.dashcamOnly = bool((ret.flags & (SubaruFlags.PREGLOBAL | SubaruFlags.HYBRID)) or
-                       ((ret.flags & SubaruFlags.LKAS_ANGLE) and is_release))
-
-    if candidate == CAR.SUBARU_FORESTER_2022:
-      # Gen 1 LKAS angle not tested, can undashcam if not release once we see a test route
-      ret.dashcamOnly = False
-
+    ret.dashcamOnly = bool(ret.flags & (SubaruFlags.PREGLOBAL | SubaruFlags.HYBRID))
     ret.autoResumeSng = False
 
     # Detect infotainment message sent from the camera
