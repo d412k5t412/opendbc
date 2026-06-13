@@ -14,7 +14,7 @@ MAX_STEER_RATE_FRAMES = 7  # tx control frames needed before torque can be cut
 # Angle-LKAS EPS hard-faults on engagement if the wheel is rotating or the target is far from current angle
 ANGLE_ENGAGE_MAX_STEER_RATE = 5.0      # deg/s
 ANGLE_ENGAGE_RATE_SETTLE_FRAMES = 30   # 0.3 s at 100 Hz
-ANGLE_ENGAGE_MAX_ANGLE_DELTA = 3.0     # deg
+ANGLE_ENGAGE_MAX_ANGLE_DELTA = 1.0     # deg
 
 # Hold ES_LKAS_State/ES_DashStatus enabled bit across disengage to avoid EyeSight fault on brake-mid-turn
 ES_DISENGAGE_HOLD_FRAMES = 50          # 0.5 s base hold after disengage
@@ -52,10 +52,14 @@ class CarController(CarControllerBase):
       rate_settled = (self.frame - self.last_high_steer_rate_frame) >= ANGLE_ENGAGE_RATE_SETTLE_FRAMES
       angle_aligned = abs(CC.actuators.steeringAngleDeg - CS.out.steeringAngleDeg) < ANGLE_ENGAGE_MAX_ANGLE_DELTA
       lkas_request = rate_settled and angle_aligned
+
+    lkas_request_rising = lkas_request and not self.lkas_request_last
+    if lkas_request_rising:
+      self.apply_steer_last = CS.out.steeringAngleDeg
     self.lkas_request_last = lkas_request
 
     apply_angle = CC.actuators.steeringAngleDeg
-    if rising_edge:
+    if rising_edge or lkas_request_rising:
       apply_angle = CS.out.steeringAngleDeg
 
     apply_steer = apply_std_steer_angle_limits(apply_angle, self.apply_steer_last, CS.out.vEgoRaw,
