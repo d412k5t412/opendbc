@@ -16,6 +16,11 @@ ANGLE_ENGAGE_MAX_STEER_RATE = 5.0      # deg/s
 ANGLE_ENGAGE_RATE_SETTLE_FRAMES = 30   # 0.3 s at 100 Hz
 ANGLE_ENGAGE_MAX_ANGLE_DELTA = 3.0     # deg
 
+# Hold ES_LKAS_State/ES_DashStatus enabled bit across disengage to avoid EyeSight fault on brake-mid-turn
+ES_DISENGAGE_HOLD_FRAMES = 50          # 0.5 s base hold after disengage
+ES_DISENGAGE_BRAKE_HOLD_FRAMES = 500   # 5.0 s extended hold while brake is held
+ES_DISENGAGE_MAX_FRAMES = 1000         # cap so counter never wraps
+
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
@@ -27,7 +32,7 @@ class CarController(CarControllerBase):
 
     self.cruise_button_prev = 0
     self.steer_rate_counter = 0
-    self.es_disengage_frames = 1000
+    self.es_disengage_frames = ES_DISENGAGE_MAX_FRAMES
 
     self.p = CarControllerParams(CP)
     self.packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
@@ -87,7 +92,6 @@ class CarController(CarControllerBase):
       msg = subarucan.create_steering_control(self.packer, apply_torque, apply_steer_req)
 
     self.apply_torque_last = apply_torque
-    self.lat_active_prev = CC.latActive
     return msg
 
   def update(self, CC, CS, now_nanos):
@@ -144,8 +148,9 @@ class CarController(CarControllerBase):
       if CC.enabled:
         self.es_disengage_frames = 0
       else:
-        self.es_disengage_frames = min(self.es_disengage_frames + 1, 1000)
-      es_enabled = self.es_disengage_frames < 50 or (CS.out.brakePressed and self.es_disengage_frames < 500)
+        self.es_disengage_frames = min(self.es_disengage_frames + 1, ES_DISENGAGE_MAX_FRAMES)
+      es_enabled = self.es_disengage_frames < ES_DISENGAGE_HOLD_FRAMES or \
+                   (CS.out.brakePressed and self.es_disengage_frames < ES_DISENGAGE_BRAKE_HOLD_FRAMES)
 
       if self.frame % 10 == 0:
         can_sends.append(subarucan.create_es_dashstatus(self.packer, self.frame // 10, CS.es_dashstatus_msg, es_enabled,
