@@ -12,7 +12,7 @@ class TestSubaruCarController(unittest.TestCase):
     CP = CarInterface.get_non_essential_params(CAR.SUBARU_CROSSTREK_2025)
     controller = CarController({}, CP)
 
-    controller.apply_angle_last = 2.46
+    controller.apply_steer_last = 2.46
 
     cs = SimpleNamespace(out=SimpleNamespace(
       vEgoRaw=8.791,
@@ -23,7 +23,7 @@ class TestSubaruCarController(unittest.TestCase):
       actuators=SimpleNamespace(steeringAngleDeg=1.11),
     )
 
-    controller.handle_angle_lateral(cc, cs)
+    controller.lateral_angle(cc, cs)
 
     expected = apply_std_steer_angle_limits(
       cc.actuators.steeringAngleDeg,
@@ -42,8 +42,8 @@ class TestSubaruCarController(unittest.TestCase):
       controller.p.ANGLE_LIMITS,
     )
 
-    self.assertAlmostEqual(controller.apply_angle_last, expected)
-    self.assertNotAlmostEqual(controller.apply_angle_last, stale_reference)
+    self.assertAlmostEqual(controller.apply_steer_last, expected)
+    self.assertNotAlmostEqual(controller.apply_steer_last, stale_reference)
 
 
 if __name__ == "__main__":

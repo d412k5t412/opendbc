@@ -11,6 +11,12 @@ Ecu = CarParams.Ecu
 
 
 class CarControllerParams:
+  ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
+    545,
+    ([0., 5., 35.], [5., .8, .15,]),
+    ([0., 5., 35.], [5., .8, .15,]),
+  )
+
   def __init__(self, CP):
     self.STEER_STEP = 2                # how often we update the steer cmd
     self.STEER_DELTA_UP = 50           # torque increase per refresh, 0.8s to max
@@ -18,12 +24,6 @@ class CarControllerParams:
     self.STEER_DRIVER_ALLOWANCE = 60   # allowed driver torque before start limiting
     self.STEER_DRIVER_MULTIPLIER = 50  # weight driver torque heavily
     self.STEER_DRIVER_FACTOR = 1       # from dbc
-
-    self.ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
-      545,
-      ([0., 5., 35.], [5., .8, .15,]),
-      ([0., 5., 35.], [5., .8, .15,]),
-    )
 
     if CP.flags & SubaruFlags.GLOBAL_GEN2:
       self.STEER_MAX = 1500

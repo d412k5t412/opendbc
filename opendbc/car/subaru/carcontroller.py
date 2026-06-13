@@ -1,7 +1,7 @@
 import numpy as np
 from opendbc.can import CANPacker
 from opendbc.car import Bus, make_tester_present_msg
-from opendbc.car.lateral import apply_center_deadzone, apply_driver_steer_torque_limits, apply_std_steer_angle_limits, common_fault_avoidance
+from opendbc.car.lateral import apply_driver_steer_torque_limits, apply_std_steer_angle_limits, common_fault_avoidance
 from opendbc.car.interfaces import CarControllerBase
 from opendbc.car.subaru import subarucan
 from opendbc.car.subaru.values import DBC, GLOBAL_ES_ADDR, CanBus, CarControllerParams, SubaruFlags
@@ -16,16 +16,11 @@ ANGLE_ENGAGE_MAX_STEER_RATE = 5.0      # deg/s
 ANGLE_ENGAGE_RATE_SETTLE_FRAMES = 30   # 0.3 s at 100 Hz
 ANGLE_ENGAGE_MAX_ANGLE_DELTA = 3.0     # deg
 
-# Below ~5 mph the EPS oscillates and can fault on small commands; apply deadzone + slew limit
-LOW_SPEED_ANGLE_HOLD_SPEED = 2.24  # m/s (5 mph)
-LOW_SPEED_MIN_ANGLE_DELTA = 0.3    # deg/cmd at standstill
-LOW_SPEED_MAX_ANGLE_DELTA = 3.0    # deg/cmd at threshold
-
 class CarController(CarControllerBase):
   def __init__(self, dbc_names, CP):
     super().__init__(dbc_names, CP)
     self.apply_torque_last = 0
-    self.apply_angle_last = 0
+    self.apply_steer_last = 0
     self.lat_active_prev = False
     self.lkas_request_last = False
     self.last_high_steer_rate_frame = -ANGLE_ENGAGE_RATE_SETTLE_FRAMES
@@ -37,10 +32,10 @@ class CarController(CarControllerBase):
     self.p = CarControllerParams(CP)
     self.packer = CANPacker(DBC[CP.carFingerprint][Bus.pt])
 
-  def handle_angle_lateral(self, CC, CS):
+  def lateral_angle(self, CC, CS):
     rising_edge = CC.latActive and not self.lat_active_prev
     if rising_edge:
-      self.apply_angle_last = CS.out.steeringAngleDeg
+      self.apply_steer_last = CS.out.steeringAngleDeg
 
     if abs(CS.out.steeringRateDeg) > ANGLE_ENGAGE_MAX_STEER_RATE:
       self.last_high_steer_rate_frame = self.frame
@@ -58,26 +53,17 @@ class CarController(CarControllerBase):
     if rising_edge:
       apply_angle = CS.out.steeringAngleDeg
 
-    if lkas_request and CS.out.vEgoRaw < LOW_SPEED_ANGLE_HOLD_SPEED:
-      deadzone = np.interp(CS.out.vEgoRaw, [0., LOW_SPEED_ANGLE_HOLD_SPEED], [6.0, 3.0])
-      apply_angle = self.apply_angle_last + apply_center_deadzone(apply_angle - self.apply_angle_last, deadzone)
-
-      low_speed_delta = float(np.interp(CS.out.vEgoRaw, [0., LOW_SPEED_ANGLE_HOLD_SPEED],
-                                        [LOW_SPEED_MIN_ANGLE_DELTA, LOW_SPEED_MAX_ANGLE_DELTA]))
-      apply_angle = float(np.clip(apply_angle, self.apply_angle_last - low_speed_delta,
-                                  self.apply_angle_last + low_speed_delta))
-
-    apply_steer = apply_std_steer_angle_limits(apply_angle, self.apply_angle_last, CS.out.vEgoRaw,
+    apply_steer = apply_std_steer_angle_limits(apply_angle, self.apply_steer_last, CS.out.vEgoRaw,
                                                CS.out.steeringAngleDeg, lkas_request, self.p.ANGLE_LIMITS)
 
     if not lkas_request:
       apply_steer = CS.out.steeringAngleDeg
 
-    self.apply_angle_last = apply_steer
+    self.apply_steer_last = apply_steer
     self.lat_active_prev = CC.latActive
     return subarucan.create_steering_control_angle(self.packer, apply_steer, lkas_request)
 
-  def handle_torque_lateral(self, CC, CS):
+  def lateral_torque(self, CC, CS):
     apply_torque = int(round(CC.actuators.torque * self.p.STEER_MAX))
 
     new_torque = int(round(apply_torque))
@@ -114,9 +100,9 @@ class CarController(CarControllerBase):
     # *** steering ***
     if (self.frame % self.p.STEER_STEP) == 0:
       if self.CP.flags & SubaruFlags.LKAS_ANGLE:
-        can_sends.append(self.handle_angle_lateral(CC, CS))
+        can_sends.append(self.lateral_angle(CC, CS))
       else:
-        can_sends.append(self.handle_torque_lateral(CC, CS))
+        can_sends.append(self.lateral_torque(CC, CS))
 
     # *** longitudinal ***
 
@@ -204,9 +190,11 @@ class CarController(CarControllerBase):
           can_sends.append(subarucan.create_es_static_2(self.packer))
 
     new_actuators = actuators.as_builder()
-    new_actuators.steeringAngleDeg = self.apply_angle_last
-    new_actuators.torque = self.apply_torque_last / self.p.STEER_MAX
-    new_actuators.torqueOutputCan = self.apply_torque_last
+    if self.CP.flags & SubaruFlags.LKAS_ANGLE:
+      new_actuators.steeringAngleDeg = self.apply_steer_last
+    else:
+      new_actuators.torque = self.apply_torque_last / self.p.STEER_MAX
+      new_actuators.torqueOutputCan = self.apply_torque_last
 
     self.frame += 1
     return new_actuators, can_sends
