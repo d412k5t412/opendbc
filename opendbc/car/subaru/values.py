@@ -11,10 +11,11 @@ Ecu = CarParams.Ecu
 
 
 class CarControllerParams:
+  # breakpoints in m/s: 0, 5, 10, 15, 20 mph, plus 15 m/s (~33.5 mph) upstream anchor
   ANGLE_LIMITS: AngleSteeringLimits = AngleSteeringLimits(
     545,
-    ([0., 5., 35.], [5., .8, .15,]),
-    ([0., 5., 35.], [5., .8, .15,]),
+    ([0., 2.24, 4.47, 6.71, 8.94, 15.], [.4, .5, .6, .7, .7, .4]),
+    ([0., 2.24, 4.47, 6.71, 8.94, 15.], [.8, 1., 1.2, 1.4, 1.4, .8]),
   )
 
   def __init__(self, CP):
