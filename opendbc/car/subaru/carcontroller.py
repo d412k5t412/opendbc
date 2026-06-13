@@ -16,6 +16,9 @@ ANGLE_ENGAGE_MAX_STEER_RATE = 5.0      # deg/s
 ANGLE_ENGAGE_RATE_SETTLE_FRAMES = 30   # 0.3 s at 100 Hz
 ANGLE_ENGAGE_MAX_ANGLE_DELTA = 1.0     # deg
 
+# Subaru angle EPS faults if apply_steer stays too far from actual angle for too long (planner oscillation case)
+MAX_STEER_ANGLE_DEVIATION = 2.0        # deg
+
 # Hold ES_LKAS_State/ES_DashStatus enabled bit across disengage to avoid EyeSight fault on brake-mid-turn
 ES_DISENGAGE_HOLD_FRAMES = 50          # 0.5 s base hold after disengage
 ES_DISENGAGE_BRAKE_HOLD_FRAMES = 500   # 5.0 s extended hold while brake is held
@@ -64,6 +67,10 @@ class CarController(CarControllerBase):
 
     apply_steer = apply_std_steer_angle_limits(apply_angle, self.apply_steer_last, CS.out.vEgoRaw,
                                                CS.out.steeringAngleDeg, lkas_request, self.p.ANGLE_LIMITS)
+
+    apply_steer = float(np.clip(apply_steer,
+                                CS.out.steeringAngleDeg - MAX_STEER_ANGLE_DEVIATION,
+                                CS.out.steeringAngleDeg + MAX_STEER_ANGLE_DEVIATION))
 
     if not lkas_request:
       apply_steer = CS.out.steeringAngleDeg
